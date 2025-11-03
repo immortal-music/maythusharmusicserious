@@ -73,20 +73,22 @@ class YouTube:
 
     async def download(self, video_id: str, video: bool = False) -> Optional[str]:
         url = self.base + video_id
-        ext = "mp4" if video else "webm"
+        
+        # Audio အတွက် m4a ကို default ထားပြီး၊ filename ကို yt-dlp ကနေတဆင့် သတ်မှတ်မယ်
+        ext = "mp4" if video else "m4a"
         filename = f"downloads/{video_id}.{ext}"
 
         if Path(filename).exists():
             return filename
 
         base_opts = {
-            "outtmpl": "downloads/%(id)s.%(ext)s",
+            "outtmpl": filename,  # output template ကို filename အတိုင်း အတိအကျ သတ်မှတ်
             "quiet": True,
             "noplaylist": True,
             "geo_bypass": True,
             "no_warnings": True,
             "overwrites": False,
-            "ignoreerrors": True,
+            "ignoreerrors": True, # Error ကို python exception မတက်အောင် လုပ်ထား
             "nocheckcertificate": True,
             "cookiefile": self.get_cookies(),
         }
@@ -94,18 +96,34 @@ class YouTube:
         if video:
             ydl_opts = {
                 **base_opts,
-                "format": "(bestvideo[height<=?720][width<=?1280][ext=mp4])+(bestaudio)",
-                "merge_output_format": "mp4",
+                # Video format ကို ပို flexible ဖြစ်အောင်ပြင်
+                "format": "bestvideo[ext=mp4][height<=?720]+bestaudio[ext=m4a]/best[ext=mp4][height<=?720]/best",
             }
         else:
             ydl_opts = {
                 **base_opts,
-                "format": "bestaudio[ext=webm][acodec=opus]",
+                # Audio format ကို ပို flexible ဖြစ်အောင်ပြင်
+                "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
+                "postprocessors": [{ # Audio file သီးသန့်ဖြစ်အောင် m4a ကို extract လုပ်
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'm4a',
+                }],
             }
 
         def _download():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            return filename
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+                
+                # Download လုပ်ပြီးနောက် ဖိုင်တကယ်ရှိမရှိ စစ်ဆေး
+                if Path(filename).exists():
+                    return filename
+                else:
+                    # Download လုပ်တာ မအောင်မြင်ခဲ့ရင် (Format error, etc.)
+                    return None
+            except Exception:
+                # တခြား မမျှော်လင့်ထားတဲ့ error တက်ရင်
+                return None
 
         return await asyncio.to_thread(_download)
+
