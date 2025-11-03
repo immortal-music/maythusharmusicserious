@@ -1,12 +1,13 @@
-FROM python:latest
+FROM nikolaik/python-nodejs:python3.11-nodejs24
 
-RUN apt-get update -y && apt-get upgrade -y \
-    && apt-get install -y --no-install-recommends ffmpeg curl unzip \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -fsSL https://deno.land/install.sh | sh \
-    && ln -s /root/.deno/bin/deno /usr/local/bin/deno
+COPY . /app/
+WORKDIR /app/
+RUN python3 -m pip install --upgrade pip setuptools
+RUN pip3 install --no-cache-dir --upgrade --requirement requirements.txt
 
-RUN pip3 install -U pip && pip3 install -U -r requirements.txt
-CMD ["bash", "start"]
+CMD python3 -m maythusharmusic
